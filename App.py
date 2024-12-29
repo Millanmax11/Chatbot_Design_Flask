@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 # Hugging Face API setup
 API_URL = "https://api-inference.huggingface.co/models/gpt2"
-API_TOKEN = "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"  # Replace with your token
+API_TOKEN = "your_API_KEY"  # Replace with your token
 HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
 
 def query_huggingface(payload):
