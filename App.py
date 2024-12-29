@@ -1,12 +1,18 @@
 from flask import Flask, request, jsonify, render_template
 import requests
+import os
+
+# Get the API key from environment variables
+api_key = os.getenv("API_KEY")
+
+if not api_key:
+    raise ValueError("API Key is missing. Please set it in the environment.")
 
 app = Flask(__name__)
 
 # Hugging Face API setup
 API_URL = "https://api-inference.huggingface.co/models/gpt2"
-API_TOKEN = "your_API_KEY"  # Replace with your token
-HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
+HEADERS = {"Authorization": f"Bearer {api_key}"}
 
 def query_huggingface(payload):
     """Query the Hugging Face Inference API."""
@@ -30,7 +36,8 @@ def chatbot_response():
         if "error" in hf_response:
             return jsonify({"response": "Sorry, the model is currently unavailable."})
         
-        answer = hf_response[0]["generated_text"]
+        # Extract the generated text
+        answer = hf_response.get("generated_text", "Sorry, no response generated.")
         return jsonify({"response": answer})
     except Exception as e:
         return jsonify({"response": "An error occurred. Please try again later."})
