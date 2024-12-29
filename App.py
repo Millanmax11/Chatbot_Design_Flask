@@ -48,8 +48,8 @@ def chatbot_response():
             app.logger.error(f"Hugging Face API returned an error: {hf_response.get('error')}")
             return jsonify({"response": "Sorry, the model is currently unavailable."})
         
-        # Extract response from the API
-        if isinstance(hf_response, list) and len(hf_response) > 0:
+        # Since the response is a list, access the first item and extract the text
+        if isinstance(hf_response, list):
             answer = hf_response[0].get("generated_text", "Sorry, no response generated.")
         else:
             answer = "Sorry, no response generated."
@@ -58,6 +58,7 @@ def chatbot_response():
     except Exception as e:
         app.logger.error(f"An unexpected error occurred: {str(e)}")
         return jsonify({"response": "An error occurred. Please try again later."})
+
 
 if __name__ == "__main__":
     app.run(debug=True)
