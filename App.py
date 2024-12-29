@@ -42,6 +42,7 @@ def chatbot_response():
     try:
         payload = {"inputs": user_message}
         hf_response = query_huggingface(payload)
+        app.logger.debug(f"Full Hugging Face response: {hf_response}")
         
         if "error" in hf_response:
             app.logger.error(f"Hugging Face API returned an error: {hf_response.get('error')}")
