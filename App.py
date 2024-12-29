@@ -39,26 +39,29 @@ def chatbot_response():
     user_message = request.form.get("message")
     if not user_message:
         return jsonify({"response": "Please enter a message."})
-    
-    # Query Hugging Face API
+
     try:
         payload = {"inputs": user_message}
         hf_response = query_huggingface(payload)
+        app.logger.debug(f"User input: {user_message}")
         app.logger.debug(f"Full Hugging Face response: {hf_response}")
-        
+
         if "error" in hf_response:
             app.logger.error(f"Hugging Face API returned an error: {hf_response.get('error')}")
             return jsonify({"response": "Sorry, the model is currently unavailable."})
-        
-        # Process list response
+
         if isinstance(hf_response, list) and len(hf_response) > 0:
             first_item = hf_response[0]
             if isinstance(first_item, dict):
                 answer = first_item.get("generated_text", "Sorry, no response generated.")
+                answer = answer[:200] + "..." if len(answer) > 200 else answer
             else:
                 answer = "Unexpected response format from the API."
         else:
             answer = "Unexpected response format from the API."
+
+        if not answer or "Snap" in answer:
+            answer = "I'm not sure how to respond to that. Could you ask something else?"
         
         return jsonify({"response": answer})
     except Exception as e:
