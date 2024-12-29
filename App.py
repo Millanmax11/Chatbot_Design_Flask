@@ -1,34 +1,39 @@
-from flask import Flask, render_template, request, jsonify
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from flask import Flask, request, jsonify, render_template
+import requests
 
-# Initialize Flask app
 app = Flask(__name__)
 
-# Load the Hugging Face model and tokenizer
-MODEL_NAME = "microsoft/DialoGPT-medium"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-model = AutoModelForCausalLM.from_pretrained(MODEL_NAME)
+# Hugging Face API setup
+API_URL = "https://api-inference.huggingface.co/models/gpt2"
+API_TOKEN = "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"  # Replace with your token
+HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
 
-@app.route('/')
+def query_huggingface(payload):
+    """Query the Hugging Face Inference API."""
+    response = requests.post(API_URL, headers=HEADERS, json=payload)
+    return response.json()
+
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/response', methods=['POST'])
-def get_response():
-    if request.method == 'POST':
-        user_message = request.form.get('message', '')
-        if not user_message:
-            return jsonify({'response': 'Please type a message!'})
+@app.route("/response", methods=["POST"])
+def chatbot_response():
+    user_message = request.form.get("message")
+    if not user_message:
+        return jsonify({"response": "Please enter a message."})
+    
+    # Query Hugging Face API
+    try:
+        payload = {"inputs": user_message}
+        hf_response = query_huggingface(payload)
+        if "error" in hf_response:
+            return jsonify({"response": "Sorry, the model is currently unavailable."})
+        
+        answer = hf_response[0]["generated_text"]
+        return jsonify({"response": answer})
+    except Exception as e:
+        return jsonify({"response": "An error occurred. Please try again later."})
 
-        # Generate response from model
-        inputs = tokenizer.encode(user_message, return_tensors='pt')
-        outputs = model.generate(inputs, max_length=150, pad_token_id=tokenizer.eos_token_id)
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-        return jsonify({'response': response})
-
-    return jsonify({'response': 'Invalid request'}), 400
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
-
