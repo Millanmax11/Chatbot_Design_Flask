@@ -23,7 +23,9 @@ def query_huggingface(payload):
     try:
         response = requests.post(API_URL, headers=HEADERS, json=payload)
         response.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
-        return response.json()
+        json_response = response.json()
+        app.logger.debug(f"Raw API response: {json_response}")  # Log raw response
+        return json_response
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Request failed: {str(e)}")
         return {"error": "Request failed."}
@@ -48,11 +50,15 @@ def chatbot_response():
             app.logger.error(f"Hugging Face API returned an error: {hf_response.get('error')}")
             return jsonify({"response": "Sorry, the model is currently unavailable."})
         
-        # Since the response is a list, access the first item and extract the text
-        if isinstance(hf_response, list):
-            answer = hf_response[0].get("generated_text", "Sorry, no response generated.")
+        # Process list response
+        if isinstance(hf_response, list) and len(hf_response) > 0:
+            first_item = hf_response[0]
+            if isinstance(first_item, dict):
+                answer = first_item.get("generated_text", "Sorry, no response generated.")
+            else:
+                answer = "Unexpected response format from the API."
         else:
-            answer = "Sorry, no response generated."
+            answer = "Unexpected response format from the API."
         
         return jsonify({"response": answer})
     except Exception as e:
