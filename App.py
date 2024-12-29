@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template
 import requests
 import os
+import logging
 
 # Get the API key from environment variables
 api_key = os.getenv("API_KEY")
@@ -14,10 +15,18 @@ app = Flask(__name__)
 API_URL = "https://api-inference.huggingface.co/models/gpt2"
 HEADERS = {"Authorization": f"Bearer {api_key}"}
 
+# Setup logging to capture detailed errors
+logging.basicConfig(level=logging.DEBUG)
+
 def query_huggingface(payload):
     """Query the Hugging Face Inference API."""
-    response = requests.post(API_URL, headers=HEADERS, json=payload)
-    return response.json()
+    try:
+        response = requests.post(API_URL, headers=HEADERS, json=payload)
+        response.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Request failed: {str(e)}")
+        return {"error": "Request failed."}
 
 @app.route("/")
 def index():
@@ -33,13 +42,16 @@ def chatbot_response():
     try:
         payload = {"inputs": user_message}
         hf_response = query_huggingface(payload)
+        
         if "error" in hf_response:
+            app.logger.error(f"Hugging Face API returned an error: {hf_response.get('error')}")
             return jsonify({"response": "Sorry, the model is currently unavailable."})
         
         # Extract the generated text
         answer = hf_response.get("generated_text", "Sorry, no response generated.")
         return jsonify({"response": answer})
     except Exception as e:
+        app.logger.error(f"An unexpected error occurred: {str(e)}")
         return jsonify({"response": "An error occurred. Please try again later."})
 
 if __name__ == "__main__":
