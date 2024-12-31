@@ -1,63 +1,69 @@
 from flask import Flask, request, jsonify, render_template
-import requests
 import os
 import logging
+from models import db, Chat  # Import SQLAlchemy database and Chat model
+from openai import OpenAI
 
-# Get the API key from environment variables
-api_key = os.getenv("API_KEY")
-
-if not api_key:
-    raise ValueError("API Key is missing. Please set it in the environment.")
-
+# Initialize Flask app
 app = Flask(__name__)
 
-# Hugging Face API setup
-API_URL = "https://api-inference.huggingface.co/models/JCX-kcuf/openchat_3.5-gpt-4-80k"
-HEADERS = {"Authorization": f"Bearer {api_key}"}
+# Configure the database
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chats.db'  # Change to your database URI
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Setup logging to capture detailed errors
-logging.basicConfig(level=logging.DEBUG)
+# Initialize the database
+db.init_app(app)
+with app.app_context():
+    db.create_all()
 
-def query_huggingface(payload):
-    """Query the Hugging Face Inference API."""
-    try:
-        response = requests.post(API_URL, headers=HEADERS, json=payload)
-        response.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        app.logger.error(f"Request failed: {str(e)}")
-        return {"error": "Request failed."}
+# Get the API key from environment variables
+API_KEY = os.getenv("API_KEY")
+if not API_KEY:
+    raise ValueError("API Key is missing. Please set it in the environment.")
 
+# Initialize OpenAI client
+client = OpenAI(api_key=API_KEY)
+
+# Logging setup
+logging.basicConfig(level=logging.INFO)
+
+# Routes
 @app.route("/")
 def index():
+    """Render the homepage."""
     return render_template("index.html")
 
 @app.route("/response", methods=["POST"])
-def chatbot_response():
-    user_message = request.form.get("message")
-    if not user_message:
-        return jsonify({"response": "Please enter a message."})
-    
-    # Query Hugging Face API
+def get_response():
+    """Handle user messages and provide AI-generated responses."""
     try:
-        payload = {"inputs": user_message}
-        hf_response = query_huggingface(payload)
-        app.logger.debug(f"Full Hugging Face response: {hf_response}")
-        
-        if "error" in hf_response:
-            app.logger.error(f"Hugging Face API returned an error: {hf_response.get('error')}")
-            return jsonify({"response": "Sorry, the model is currently unavailable."})
-        
-        # Since the response is a list, access the first item and extract the text
-        if isinstance(hf_response, list):
-            answer = hf_response[0].get("generated_text", "Sorry, no response generated.")
-        else:
-            answer = "Sorry, no response generated."
-        
-        return jsonify({"response": answer})
+        data = request.get_json()  # Parse JSON data from the request
+        message = data.get("message", "")
+
+        if not message:
+            return jsonify({'error': 'Message is required'}), 400
+
+        # Generate AI response using OpenAI
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": message}
+            ]
+        )
+
+        answer = completion.choices[0].message.content
+
+        # Save chat to the database
+        new_chat = Chat(message=message, response=answer)
+        db.session.add(new_chat)
+        db.session.commit()
+
+        return jsonify({'response': answer}), 200
+
     except Exception as e:
-        app.logger.error(f"An unexpected error occurred: {str(e)}")
-        return jsonify({"response": "An error occurred. Please try again later."})
+        logging.error(f"Error processing response: {e}")
+        return jsonify({'error': 'Something went wrong'}), 500
 
 
 if __name__ == "__main__":
