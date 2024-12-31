@@ -37,8 +37,7 @@ def index():
 def get_response():
     """Handle user messages and provide AI-generated responses."""
     try:
-        data = request.get_json()  # Parse JSON data from the request
-        message = data.get("message", "")
+        message = request.form.get("message", "")
 
         if not message:
             return jsonify({'error': 'Message is required'}), 400
